@@ -1,0 +1,2067 @@
+{
+  "name": "Integration LINE",
+  "flow": [
+    {
+      "id": 2,
+      "module": "line:watchMessages",
+      "version": 1,
+      "parameters": {
+        "__IMTHOOK__": 0
+      },
+      "mapper": {},
+      "metadata": {
+        "designer": {
+          "x": 0,
+          "y": 600
+        },
+        "restore": {
+          "parameters": {
+            "__IMTHOOK__": 0
+          }
+        },
+        "parameters": [
+          {
+            "name": "__IMTHOOK__",
+            "type": "hook:line",
+            "label": "Webhook",
+            "required": true
+          }
+        ]
+      }
+    },
+    {
+      "id": 6,
+      "module": "builtin:BasicRouter",
+      "version": 1,
+      "mapper": null,
+      "metadata": {
+        "designer": {
+          "x": 300,
+          "y": 600
+        }
+      },
+      "routes": [
+        {
+          "flow": [
+            {
+              "id": 8,
+              "module": "line:getAFileContent",
+              "version": 1,
+              "parameters": {
+                "__IMTCONN__": 0
+              },
+              "filter": {
+                "name": "语音消息",
+                "conditions": [
+                  [
+                    {
+                      "a": "{{2.events[].message.type}}",
+                      "b": "audio",
+                      "o": "text:equal"
+                    }
+                  ]
+                ]
+              },
+              "mapper": {
+                "message": "{{2.events[].message.id}}"
+              },
+              "metadata": {
+                "designer": {
+                  "x": 600,
+                  "y": 450
+                },
+                "restore": {
+                  "parameters": {
+                    "__IMTCONN__": 0
+                  }
+                },
+                "parameters": [
+                  {
+                    "name": "__IMTCONN__",
+                    "type": "account:line2",
+                    "label": "Connection",
+                    "required": true
+                  }
+                ],
+                "expect": [
+                  {
+                    "name": "message",
+                    "type": "text",
+                    "label": "Message ID",
+                    "required": true
+                  }
+                ]
+              }
+            },
+            {
+              "id": 22,
+              "module": "gemini-ai:uploadAFile",
+              "version": 1,
+              "parameters": {
+                "__IMTCONN__": 0
+              },
+              "mapper": {
+                "file_data": "{{8.data}}",
+                "file_name": "{{8.filename}}.m4a",
+                "useFileSearchStore": false
+              },
+              "metadata": {
+                "designer": {
+                  "x": 900,
+                  "y": 450
+                },
+                "restore": {
+                  "expect": {
+                    "useFileSearchStore": {
+                      "mode": "chose"
+                    }
+                  },
+                  "parameters": {
+                    "__IMTCONN__": 0
+                  }
+                },
+                "parameters": [
+                  {
+                    "name": "__IMTCONN__",
+                    "type": "account:gemini-ai-q9zyjp",
+                    "label": "Connection",
+                    "required": true
+                  }
+                ],
+                "expect": [
+                  {
+                    "name": "file_name",
+                    "type": "text",
+                    "label": "Name",
+                    "required": true
+                  },
+                  {
+                    "name": "file_data",
+                    "type": "buffer",
+                    "label": "Data",
+                    "required": true
+                  },
+                  {
+                    "name": "useFileSearchStore",
+                    "type": "boolean",
+                    "label": "Use File Search Store"
+                  }
+                ]
+              },
+              "onerror": [
+                {
+                  "id": 29,
+                  "module": "builtin:Ignore",
+                  "version": 1,
+                  "parameters": {},
+                  "mapper": {},
+                  "metadata": {
+                    "designer": {
+                      "x": 1200,
+                      "y": 900
+                    },
+                    "restore": {}
+                  }
+                }
+              ]
+            },
+            {
+              "id": 23,
+              "module": "gemini-ai:createACompletionGeminiPro",
+              "version": 1,
+              "parameters": {
+                "__IMTCONN__": 0
+              },
+              "mapper": {
+                "model": "gemini-3.6-flash",
+                "contents": [
+                  {
+                    "role": "user",
+                    "parts": [
+                      {
+                        "type": "file",
+                        "file_data": {
+                          "file_uri": "{{22.uri}}",
+                          "mime_type": "{{22.mimeType}}"
+                        }
+                      }
+                    ]
+                  }
+                ],
+                "generationConfig": {
+                  "imageConfig": {},
+                  "thinkingConfig": {}
+                },
+                "system_instruction": {
+                  "parts": [
+                    {
+                      "text": "【角色与任务】\r\n你是一位拥有丰富临床经验的高级 Care Manager（介護支援専門員）。\r\n你的任务是将现场接收到的护理文字记录（中文、日语口語或混杂语言）解析、翻译并整理为符合日本介護保険制度标准的高品质介护用语（介護専門用語），并严格按照 JSON Schema 格式输出数据。\r\n\r\n【转换规则】\r\n1. 语言规范：全部使用【专业日语介护术语】。\r\n2. 称呼规范：严禁使用おじいちゃん/おばあちゃん或中文老张/老王，一律转为\"姓氏 + 様\"（如：張様）。\r\n3. 动态归纳：\r\n   - 口语\"剩一半\" -> \"摂取量 50%\"\r\n   - \"吵架/发脾气\" -> \"不穏（ふおん）/ 感情失調のご様子\"\r\n   - \"不想吃药\" -> \"服薬拒否 / 服薬促し\"\r\n   - \"睡觉/不理人\" -> \"傾眠傾向 / 拒絶の態度\"\r\n4. 格式要求：只输出纯 JSON 字符串，不得包含任何 Markdown 标记（不要使用 ```json 或 ```）。\r\n\r\n【JSON Schema】\r\n{\r\n  \"patient_name\": \"利用者姓名（如：張様）\",\r\n  \"category\": \"分類（食事/排泄/入浴/バイタル/服薬/特記事項）\",\r\n  \"care_record_ja\": \"符合日本介护规范的标准专业日语描述\",\r\n  \"detail\": {\r\n    \"intake_food\": \"主食/副食摄入量（如：50% / 未記載）\",\r\n    \"intake_water_ml\": \"水分摄入量（数值，如：150 / 未記載）\",\r\n    \"vital_signs\": \"生命体征记录（如：BP 120/80 / 未記載）\"\r\n  },\r\n  \"is_abnormal\": false,\r\n  \"soap_text\": \"S: ...\\nO: ...\\nA: ...\\nP: ...\",\r\n  \"missing_info\": \"提示未记载的合规必要项目（无则写无）\",\r\n  \"raw_transcript\": \"原始文字内容\"\r\n}\nReturn ONLY a raw JSON object. Do not wrap it in markdown code blocks like ```json.\n"
+                    }
+                  ]
+                }
+              },
+              "metadata": {
+                "designer": {
+                  "x": 1200,
+                  "y": 300
+                },
+                "restore": {
+                  "expect": {
+                    "model": {
+                      "mode": "chose",
+                      "label": "Gemini 3.6 Flash"
+                    },
+                    "contents": {
+                      "mode": "chose",
+                      "items": [
+                        {
+                          "role": {
+                            "mode": "chose",
+                            "label": "User"
+                          },
+                          "parts": {
+                            "mode": "chose",
+                            "items": [
+                              {
+                                "type": {
+                                  "mode": "chose",
+                                  "label": "File"
+                                }
+                              }
+                            ]
+                          }
+                        }
+                      ]
+                    },
+                    "serviceTier": {
+                      "mode": "chose",
+                      "label": "Empty"
+                    },
+                    "url_context": {
+                      "mode": "chose"
+                    },
+                    "code_execution": {
+                      "mode": "chose"
+                    },
+                    "safetySettings": {
+                      "mode": "chose"
+                    },
+                    "generationConfig": {
+                      "nested": {
+                        "imageConfig": {
+                          "nested": {
+                            "imageSize": {
+                              "mode": "chose",
+                              "label": "Empty"
+                            }
+                          }
+                        },
+                        "stopSequences": {
+                          "mode": "chose"
+                        },
+                        "thinkingConfig": {
+                          "nested": {
+                            "thinking_level": {
+                              "mode": "chose",
+                              "label": "Empty"
+                            },
+                            "include_thoughts": {
+                              "mode": "chose"
+                            }
+                          }
+                        },
+                        "mediaResolution": {
+                          "mode": "chose",
+                          "label": "Empty"
+                        },
+                        "responseMimeType": {
+                          "mode": "chose",
+                          "label": "Empty"
+                        },
+                        "responseModalities": {
+                          "mode": "chose"
+                        }
+                      }
+                    },
+                    "system_instruction": {
+                      "nested": {
+                        "parts": {
+                          "mode": "chose",
+                          "items": [
+                            null
+                          ]
+                        }
+                      }
+                    },
+                    "google_maps_context": {
+                      "mode": "chose"
+                    },
+                    "google_search_context": {
+                      "mode": "chose"
+                    },
+                    "file_search_store_context": {
+                      "mode": "chose"
+                    },
+                    "function_declarations_context": {
+                      "mode": "chose"
+                    }
+                  },
+                  "parameters": {
+                    "__IMTCONN__": 0
+                  }
+                },
+                "parameters": [
+                  {
+                    "name": "__IMTCONN__",
+                    "type": "account:gemini-ai-q9zyjp",
+                    "label": "Connection",
+                    "required": true
+                  }
+                ],
+                "expect": [
+                  {
+                    "name": "model",
+                    "type": "select",
+                    "label": "AI Model",
+                    "required": true
+                  },
+                  {
+                    "name": "contents",
+                    "spec": [
+                      {
+                        "name": "role",
+                        "type": "select",
+                        "label": "Role",
+                        "options": [
+                          {
+                            "label": "User",
+                            "value": "user"
+                          },
+                          {
+                            "label": "Model",
+                            "value": "model"
+                          }
+                        ],
+                        "required": true
+                      },
+                      {
+                        "name": "parts",
+                        "spec": [
+                          {
+                            "name": "type",
+                            "type": "select",
+                            "label": "Message Type",
+                            "options": [
+                              {
+                                "label": "Text",
+                                "value": "text",
+                                "nested": [
+                                  {
+                                    "name": "text",
+                                    "type": "text",
+                                    "label": "Text",
+                                    "required": true
+                                  }
+                                ]
+                              },
+                              {
+                                "label": "File",
+                                "value": "file",
+                                "nested": [
+                                  {
+                                    "name": "file_data",
+                                    "spec": [
+                                      {
+                                        "name": "mime_type",
+                                        "type": "text",
+                                        "label": "Mime Type",
+                                        "required": true
+                                      },
+                                      {
+                                        "help": "You can use public or signed URLs as input by using the URLs.",
+                                        "name": "file_uri",
+                                        "type": "text",
+                                        "label": "File URI",
+                                        "required": true
+                                      }
+                                    ],
+                                    "type": "collection",
+                                    "label": "File Data",
+                                    "required": true
+                                  }
+                                ]
+                              },
+                              {
+                                "label": "Function Call",
+                                "value": "functionCall",
+                                "nested": [
+                                  {
+                                    "name": "functionCall",
+                                    "spec": [
+                                      {
+                                        "help": "The name of the function to call.",
+                                        "name": "name",
+                                        "type": "text",
+                                        "label": "Name",
+                                        "required": true,
+                                        "validate": {
+                                          "max": 64
+                                        }
+                                      },
+                                      {
+                                        "help": "The function parameters and values in JSON object format.",
+                                        "name": "args",
+                                        "type": "json",
+                                        "label": "Arguments"
+                                      },
+                                      {
+                                        "help": "The unique ID of the function call.",
+                                        "name": "id",
+                                        "type": "text",
+                                        "label": "Function Call ID"
+                                      }
+                                    ],
+                                    "type": "collection",
+                                    "label": "Function Call"
+                                  }
+                                ]
+                              },
+                              {
+                                "label": "Function Response",
+                                "value": "functionResponse",
+                                "nested": [
+                                  {
+                                    "name": "functionResponse",
+                                    "spec": [
+                                      {
+                                        "help": "The name of the function to call.",
+                                        "name": "name",
+                                        "type": "text",
+                                        "label": "Name",
+                                        "required": true,
+                                        "validate": {
+                                          "max": 64
+                                        }
+                                      },
+                                      {
+                                        "help": "The function response in JSON object format.",
+                                        "name": "response",
+                                        "type": "json",
+                                        "label": "Response",
+                                        "required": true
+                                      }
+                                    ],
+                                    "type": "collection",
+                                    "label": "Function Response"
+                                  }
+                                ]
+                              }
+                            ],
+                            "required": true
+                          },
+                          {
+                            "name": "thoughtSignature",
+                            "type": "text",
+                            "label": "Thought Signature"
+                          }
+                        ],
+                        "type": "array",
+                        "label": "Parts",
+                        "required": true
+                      }
+                    ],
+                    "type": "array",
+                    "label": "Messages",
+                    "required": true
+                  },
+                  {
+                    "name": "system_instruction",
+                    "spec": [
+                      {
+                        "name": "parts",
+                        "spec": {
+                          "name": "value",
+                          "spec": [
+                            {
+                              "name": "text",
+                              "type": "text",
+                              "label": "Value"
+                            }
+                          ],
+                          "type": "collection",
+                          "label": "Prompt"
+                        },
+                        "type": "array",
+                        "label": "Prompts"
+                      }
+                    ],
+                    "type": "collection",
+                    "label": "System Instructions"
+                  },
+                  {
+                    "name": "safetySettings",
+                    "spec": [
+                      {
+                        "name": "category",
+                        "type": "select",
+                        "label": "Category",
+                        "options": [
+                          {
+                            "label": "Harassment content",
+                            "value": "HARM_CATEGORY_HARASSMENT"
+                          },
+                          {
+                            "label": "Hate speech and content",
+                            "value": "HARM_CATEGORY_HATE_SPEECH"
+                          },
+                          {
+                            "label": "Sexually explicit content.",
+                            "value": "HARM_CATEGORY_SEXUALLY_EXPLICIT"
+                          },
+                          {
+                            "label": "Dangerous content:",
+                            "value": "HARM_CATEGORY_DANGEROUS_CONTENT"
+                          }
+                        ]
+                      },
+                      {
+                        "name": "threshold",
+                        "type": "select",
+                        "label": "Threshold",
+                        "options": [
+                          {
+                            "label": "Block low and above.",
+                            "value": "BLOCK_LOW_AND_ABOVE"
+                          },
+                          {
+                            "label": "Block medium and above.",
+                            "value": "BLOCK_MEDIUM_AND_ABOVE"
+                          },
+                          {
+                            "label": "Block only high.",
+                            "value": "BLOCK_ONLY_HIGH"
+                          },
+                          {
+                            "label": "Block none.",
+                            "value": "BLOCK_NONE"
+                          }
+                        ]
+                      }
+                    ],
+                    "type": "array",
+                    "label": "Safety Settings"
+                  },
+                  {
+                    "name": "generationConfig",
+                    "spec": [
+                      {
+                        "name": "stopSequences",
+                        "spec": {
+                          "name": "value",
+                          "type": "text",
+                          "label": "Stop Sequence"
+                        },
+                        "type": "array",
+                        "label": "Stop Sequences"
+                      },
+                      {
+                        "name": "responseModalities",
+                        "type": "select",
+                        "label": "Response Modalities",
+                        "multiple": true,
+                        "validate": {
+                          "enum": [
+                            "text",
+                            "image"
+                          ]
+                        }
+                      },
+                      {
+                        "name": "maxOutputTokens",
+                        "type": "number",
+                        "label": "Max Output Tokens"
+                      },
+                      {
+                        "name": "temperature",
+                        "type": "number",
+                        "label": "Temperature",
+                        "validate": {
+                          "max": 1,
+                          "min": 0
+                        }
+                      },
+                      {
+                        "name": "topP",
+                        "type": "number",
+                        "label": "Top P",
+                        "validate": {
+                          "max": 1,
+                          "min": 0
+                        }
+                      },
+                      {
+                        "name": "topK",
+                        "type": "number",
+                        "label": "Top K"
+                      },
+                      {
+                        "name": "thinkingConfig",
+                        "spec": [
+                          {
+                            "name": "thinkingBudget",
+                            "type": "number",
+                            "label": "Thinking Budget"
+                          },
+                          {
+                            "name": "include_thoughts",
+                            "type": "boolean",
+                            "label": "Include Thoughts"
+                          },
+                          {
+                            "name": "thinking_level",
+                            "type": "select",
+                            "label": "Thinking Level",
+                            "validate": {
+                              "enum": [
+                                "low",
+                                "high"
+                              ]
+                            }
+                          }
+                        ],
+                        "type": "collection",
+                        "label": "Thinking Config"
+                      },
+                      {
+                        "name": "mediaResolution",
+                        "type": "select",
+                        "label": "Media Resolution",
+                        "validate": {
+                          "enum": [
+                            "media_resolution_low",
+                            "media_resolution_medium",
+                            "media_resolution_high"
+                          ]
+                        }
+                      },
+                      {
+                        "name": "imageConfig",
+                        "spec": [
+                          {
+                            "name": "imageSize",
+                            "type": "select",
+                            "label": "Image Size",
+                            "validate": {
+                              "enum": [
+                                "1K",
+                                "2K",
+                                "4K"
+                              ]
+                            }
+                          }
+                        ],
+                        "type": "collection",
+                        "label": "Image Configuration"
+                      },
+                      {
+                        "name": "responseMimeType",
+                        "type": "select",
+                        "label": "Response Format"
+                      }
+                    ],
+                    "type": "collection",
+                    "label": "Generation configurations"
+                  },
+                  {
+                    "name": "tools",
+                    "type": "any",
+                    "label": "Tools"
+                  },
+                  {
+                    "name": "tool_config",
+                    "type": "any",
+                    "label": "Tool Config"
+                  },
+                  {
+                    "name": "function_declarations_context",
+                    "type": "boolean",
+                    "label": "Function Declarations Grounding"
+                  },
+                  {
+                    "name": "url_context",
+                    "type": "boolean",
+                    "label": "URL Context"
+                  },
+                  {
+                    "name": "google_search_context",
+                    "type": "boolean",
+                    "label": "Google Search Grounding"
+                  },
+                  {
+                    "name": "code_execution",
+                    "type": "boolean",
+                    "label": "Code Execution"
+                  },
+                  {
+                    "name": "google_maps_context",
+                    "type": "boolean",
+                    "label": "Google Maps Grounding"
+                  },
+                  {
+                    "name": "file_search_store_context",
+                    "type": "boolean",
+                    "label": "File Search Store Context"
+                  },
+                  {
+                    "name": "serviceTier",
+                    "type": "select",
+                    "label": "Inference Service Tier"
+                  }
+                ]
+              },
+              "onerror": [
+                {
+                  "id": 28,
+                  "module": "builtin:Ignore",
+                  "version": 1,
+                  "parameters": {},
+                  "mapper": {},
+                  "metadata": {
+                    "designer": {
+                      "x": 1500,
+                      "y": 600
+                    },
+                    "restore": {}
+                  }
+                }
+              ]
+            },
+            {
+              "id": 12,
+              "module": "json:ParseJSON",
+              "version": 1,
+              "parameters": {
+                "type": 536215
+              },
+              "mapper": {
+                "json": "{{23.candidates[].content.parts[].text}}"
+              },
+              "metadata": {
+                "designer": {
+                  "x": 1500,
+                  "y": 150
+                },
+                "restore": {
+                  "parameters": {
+                    "type": {
+                      "label": "KaigoRecordSchema"
+                    }
+                  }
+                },
+                "parameters": [
+                  {
+                    "name": "type",
+                    "type": "udt",
+                    "label": "Data structure"
+                  }
+                ],
+                "expect": [
+                  {
+                    "name": "json",
+                    "type": "text",
+                    "label": "JSON string",
+                    "required": true
+                  }
+                ],
+                "interface": [
+                  {
+                    "help": "",
+                    "name": "patient_name",
+                    "type": "text",
+                    "label": "Patient name",
+                    "default": null,
+                    "required": false,
+                    "multiline": false
+                  },
+                  {
+                    "help": "",
+                    "name": "category",
+                    "type": "text",
+                    "label": "Category"
+                  },
+                  {
+                    "help": "",
+                    "name": "care_record_ja",
+                    "type": "text",
+                    "label": "Care record ja"
+                  },
+                  {
+                    "help": "",
+                    "name": "detail",
+                    "spec": [
+                      {
+                        "name": "intake_food",
+                        "type": "text",
+                        "label": "Intake food"
+                      },
+                      {
+                        "name": "intake_water_ml",
+                        "type": "text",
+                        "label": "Intake water ml"
+                      },
+                      {
+                        "name": "vital_signs",
+                        "type": "text",
+                        "label": "Vital signs"
+                      }
+                    ],
+                    "type": "collection",
+                    "label": "Detail"
+                  },
+                  {
+                    "help": "",
+                    "name": "is_abnormal",
+                    "type": "boolean",
+                    "label": "Is abnormal"
+                  },
+                  {
+                    "help": "",
+                    "name": "soap_text",
+                    "type": "text",
+                    "label": "SOAP text"
+                  },
+                  {
+                    "help": "",
+                    "name": "missing_info",
+                    "type": "text",
+                    "label": "Missing info"
+                  },
+                  {
+                    "help": "",
+                    "name": "raw_transcript",
+                    "type": "text",
+                    "label": "Raw transcript"
+                  }
+                ]
+              }
+            },
+            {
+              "id": 13,
+              "module": "google-sheets:addRow",
+              "version": 2,
+              "parameters": {
+                "__IMTCONN__": 0
+              },
+              "mapper": {
+                "from": "drive",
+                "mode": "select",
+                "values": {
+                  "分類": "{{12.category}}",
+                  "記録者": "{{2.events[].source.userId}}",
+                  "SOAP構造": "{{12.soap_text}}",
+                  "バイタル": "{{12.detail.vital_signs}}",
+                  "介護記録": "{{12.care_record_ja}}",
+                  "記録日時": "{{formatDate(now; \"YYYY-MM-DD HH:mm:ss\"; \"Asia/Tokyo\")}}",
+                  "利用者姓名": "{{12.patient_name}}",
+                  "異常・注意": "{{12.is_abnormal}}",
+                  "食事摂取量": "{{12.detail.intake_food}}",
+                  "原文テキスト": "{{12.raw_transcript}}",
+                  "水分摂取量(ml)": "{{12.detail.intake_water_ml}}",
+                  "未入力・確認項目": "{{12.missing_info}}"
+                },
+                "sheetId": "介護記録（デモ）",
+                "spreadsheetId": "REDACTED_GOOGLE_SHEET_ID",
+                "includesHeaders": true,
+                "insertDataOption": "INSERT_ROWS",
+                "useColumnHeaders": true,
+                "valueInputOption": "RAW",
+                "insertUnformatted": false
+              },
+              "metadata": {
+                "designer": {
+                  "x": 1800,
+                  "y": 0
+                },
+                "restore": {
+                  "expect": {
+                    "from": {
+                      "label": "My Drive"
+                    },
+                    "mode": {
+                      "label": "Search by path"
+                    },
+                    "sheetId": "介護記録（デモ）",
+                    "spreadsheetId": "REDACTED_GOOGLE_SHEET_ID",
+                    "includesHeaders": {
+                      "label": "Yes"
+                    },
+                    "insertDataOption": {
+                      "mode": "chose",
+                      "label": "Insert rows"
+                    },
+                    "useColumnHeaders": {
+                      "label": "Yes"
+                    },
+                    "valueInputOption": {
+                      "mode": "chose",
+                      "label": "Raw"
+                    },
+                    "insertUnformatted": {
+                      "mode": "chose"
+                    }
+                  },
+                  "parameters": {
+                    "__IMTCONN__": 0
+                  }
+                },
+                "parameters": [
+                  {
+                    "name": "__IMTCONN__",
+                    "type": "account:google",
+                    "label": "Connection",
+                    "required": true
+                  }
+                ],
+                "expect": [
+                  {
+                    "name": "mode",
+                    "type": "select",
+                    "label": "Search Method",
+                    "required": true,
+                    "validate": {
+                      "enum": [
+                        "select",
+                        "fromAll",
+                        "map"
+                      ]
+                    }
+                  },
+                  {
+                    "name": "insertUnformatted",
+                    "type": "boolean",
+                    "label": "Unformatted",
+                    "required": true
+                  },
+                  {
+                    "name": "valueInputOption",
+                    "type": "select",
+                    "label": "Value input option",
+                    "required": true,
+                    "validate": {
+                      "enum": [
+                        "USER_ENTERED",
+                        "RAW"
+                      ]
+                    }
+                  },
+                  {
+                    "name": "insertDataOption",
+                    "type": "select",
+                    "label": "Insert data option",
+                    "validate": {
+                      "enum": [
+                        "INSERT_ROWS",
+                        "OVERWRITE"
+                      ]
+                    }
+                  },
+                  {
+                    "name": "from",
+                    "type": "select",
+                    "label": "Drive",
+                    "required": true,
+                    "validate": {
+                      "enum": [
+                        "drive",
+                        "share",
+                        "team"
+                      ]
+                    }
+                  },
+                  {
+                    "name": "spreadsheetId",
+                    "type": "file",
+                    "label": "Spreadsheet Name",
+                    "required": true
+                  },
+                  {
+                    "name": "sheetId",
+                    "type": "select",
+                    "label": "Sheet Name",
+                    "required": true
+                  },
+                  {
+                    "name": "includesHeaders",
+                    "type": "select",
+                    "label": "Table contains headers",
+                    "required": true,
+                    "validate": {
+                      "enum": [
+                        true,
+                        false
+                      ]
+                    }
+                  },
+                  {
+                    "name": "useColumnHeaders",
+                    "type": "select",
+                    "label": "Use column headers as IDs of the columns",
+                    "required": true,
+                    "validate": {
+                      "enum": [
+                        true,
+                        false
+                      ]
+                    }
+                  },
+                  {
+                    "name": "values",
+                    "spec": [
+                      {
+                        "name": "記録日時",
+                        "type": "text",
+                        "label": "記録日時 (A)"
+                      },
+                      {
+                        "name": "利用者姓名",
+                        "type": "text",
+                        "label": "利用者姓名 (B)"
+                      },
+                      {
+                        "name": "分類",
+                        "type": "text",
+                        "label": "分類 (C)"
+                      },
+                      {
+                        "name": "介護記録",
+                        "type": "text",
+                        "label": "介護記録 (D)"
+                      },
+                      {
+                        "name": "食事摂取量",
+                        "type": "text",
+                        "label": "食事摂取量 (E)"
+                      },
+                      {
+                        "name": "水分摂取量(ml)",
+                        "type": "text",
+                        "label": "水分摂取量(ml) (F)"
+                      },
+                      {
+                        "name": "バイタル",
+                        "type": "text",
+                        "label": "バイタル (G)"
+                      },
+                      {
+                        "name": "異常・注意",
+                        "type": "text",
+                        "label": "異常・注意 (H)"
+                      },
+                      {
+                        "name": "SOAP構造",
+                        "type": "text",
+                        "label": "SOAP構造 (I)"
+                      },
+                      {
+                        "name": "未入力・確認項目",
+                        "type": "text",
+                        "label": "未入力・確認項目 (J)"
+                      },
+                      {
+                        "name": "原文テキスト",
+                        "type": "text",
+                        "label": "原文テキスト (K)"
+                      },
+                      {
+                        "name": "記録者",
+                        "type": "text",
+                        "label": "記録者 (L)"
+                      }
+                    ],
+                    "type": "collection",
+                    "label": "Values in columns",
+                    "metadata": [
+                      [
+                        [
+                          "記録日時",
+                          "利用者姓名",
+                          "分類",
+                          "介護記録",
+                          "食事摂取量",
+                          "水分摂取量(ml)",
+                          "バイタル",
+                          "異常・注意",
+                          "SOAP構造",
+                          "未入力・確認項目",
+                          "原文テキスト",
+                          "記録者"
+                        ]
+                      ]
+                    ]
+                  }
+                ],
+                "advanced": true
+              }
+            }
+          ]
+        },
+        {
+          "flow": [
+            {
+              "id": 15,
+              "module": "gemini-ai:createACompletionGeminiPro",
+              "version": 1,
+              "parameters": {
+                "__IMTCONN__": 0
+              },
+              "filter": {
+                "name": "文字消息",
+                "conditions": [
+                  [
+                    {
+                      "a": "{{2.events[].message.type}}",
+                      "b": "text",
+                      "o": "text:equal"
+                    }
+                  ]
+                ]
+              },
+              "mapper": {
+                "model": "gemini-3.6-flash",
+                "contents": [
+                  {
+                    "role": "user",
+                    "parts": [
+                      {
+                        "text": "{{2.events[].message.text}}",
+                        "type": "text"
+                      }
+                    ]
+                  }
+                ],
+                "generationConfig": {
+                  "imageConfig": {},
+                  "thinkingConfig": {}
+                },
+                "system_instruction": {
+                  "parts": [
+                    {
+                      "text": "【角色与任务】\r\n你是一位拥有丰富临床经验的高级 Care Manager（介護支援専門員）。\r\n你的任务是将现场接收到的护理文字记录（中文、日语口語或混杂语言）解析、翻译并整理为符合日本介護保険制度标准的高品质介护用语（介護専門用語），并严格按照 JSON Schema 格式输出数据。\r\n\r\n【转换规则】\r\n1. 语言规范：全部使用【专业日语介护术语】。\r\n2. 称呼规范：严禁使用おじいちゃん/おばあちゃん或中文老张/老王，一律转为\"姓氏 + 様\"（如：張様）。\r\n3. 动态归纳：\r\n   - 口语\"剩一半\" -> \"摂取量 50%\"\r\n   - \"吵架/发脾气\" -> \"不穏（ふおん）/ 感情失調のご様子\"\r\n   - \"不想吃药\" -> \"服薬拒否 / 服薬促し\"\r\n   - \"睡觉/不理人\" -> \"傾眠傾向 / 拒絶の態度\"\r\n4. 格式要求：只输出纯 JSON 字符串，不得包含任何 Markdown 标记（不要使用 ```json 或 ```）。\r\n\r\n【JSON Schema】\r\n{\r\n  \"patient_name\": \"利用者姓名（如：張様）\",\r\n  \"category\": \"分類（食事/排泄/入浴/バイタル/服薬/特記事項）\",\r\n  \"care_record_ja\": \"符合日本介护规范的标准专业日语描述\",\r\n  \"detail\": {\r\n    \"intake_food\": \"主食/副食摄入量（如：50% / 未記載）\",\r\n    \"intake_water_ml\": \"水分摄入量（数值，如：150 / 未記載）\",\r\n    \"vital_signs\": \"生命体征记录（如：BP 120/80 / 未記載）\"\r\n  },\r\n  \"is_abnormal\": false,\r\n  \"soap_text\": \"S: ...\\nO: ...\\nA: ...\\nP: ...\",\r\n  \"missing_info\": \"提示未记载的合规必要项目（无则写无）\",\r\n  \"raw_transcript\": \"原始文字内容\"\r\n}"
+                    }
+                  ]
+                }
+              },
+              "metadata": {
+                "designer": {
+                  "x": 600,
+                  "y": 1200
+                },
+                "restore": {
+                  "expect": {
+                    "model": {
+                      "mode": "chose",
+                      "label": "Gemini 3.6 Flash"
+                    },
+                    "contents": {
+                      "mode": "chose",
+                      "items": [
+                        {
+                          "role": {
+                            "mode": "chose",
+                            "label": "User"
+                          },
+                          "parts": {
+                            "mode": "chose",
+                            "items": [
+                              {
+                                "type": {
+                                  "mode": "chose",
+                                  "label": "Text"
+                                }
+                              }
+                            ]
+                          }
+                        }
+                      ]
+                    },
+                    "serviceTier": {
+                      "mode": "chose",
+                      "label": "Empty"
+                    },
+                    "url_context": {
+                      "mode": "chose"
+                    },
+                    "code_execution": {
+                      "mode": "chose"
+                    },
+                    "safetySettings": {
+                      "mode": "chose"
+                    },
+                    "generationConfig": {
+                      "nested": {
+                        "imageConfig": {
+                          "nested": {
+                            "imageSize": {
+                              "mode": "chose",
+                              "label": "Empty"
+                            }
+                          }
+                        },
+                        "stopSequences": {
+                          "mode": "chose"
+                        },
+                        "thinkingConfig": {
+                          "nested": {
+                            "thinking_level": {
+                              "mode": "chose",
+                              "label": "Empty"
+                            },
+                            "include_thoughts": {
+                              "mode": "chose"
+                            }
+                          }
+                        },
+                        "mediaResolution": {
+                          "mode": "chose",
+                          "label": "Empty"
+                        },
+                        "responseMimeType": {
+                          "mode": "chose",
+                          "label": "Empty"
+                        },
+                        "responseModalities": {
+                          "mode": "chose"
+                        }
+                      }
+                    },
+                    "system_instruction": {
+                      "nested": {
+                        "parts": {
+                          "mode": "chose",
+                          "items": [
+                            null
+                          ]
+                        }
+                      }
+                    },
+                    "google_maps_context": {
+                      "mode": "chose"
+                    },
+                    "google_search_context": {
+                      "mode": "chose"
+                    },
+                    "file_search_store_context": {
+                      "mode": "chose"
+                    },
+                    "function_declarations_context": {
+                      "mode": "chose"
+                    }
+                  },
+                  "parameters": {
+                    "__IMTCONN__": 0
+                  }
+                },
+                "parameters": [
+                  {
+                    "name": "__IMTCONN__",
+                    "type": "account:gemini-ai-q9zyjp",
+                    "label": "Connection",
+                    "required": true
+                  }
+                ],
+                "expect": [
+                  {
+                    "name": "model",
+                    "type": "select",
+                    "label": "AI Model",
+                    "required": true
+                  },
+                  {
+                    "name": "contents",
+                    "spec": [
+                      {
+                        "name": "role",
+                        "type": "select",
+                        "label": "Role",
+                        "options": [
+                          {
+                            "label": "User",
+                            "value": "user"
+                          },
+                          {
+                            "label": "Model",
+                            "value": "model"
+                          }
+                        ],
+                        "required": true
+                      },
+                      {
+                        "name": "parts",
+                        "spec": [
+                          {
+                            "name": "type",
+                            "type": "select",
+                            "label": "Message Type",
+                            "options": [
+                              {
+                                "label": "Text",
+                                "value": "text",
+                                "nested": [
+                                  {
+                                    "name": "text",
+                                    "type": "text",
+                                    "label": "Text",
+                                    "required": true
+                                  }
+                                ]
+                              },
+                              {
+                                "label": "File",
+                                "value": "file",
+                                "nested": [
+                                  {
+                                    "name": "file_data",
+                                    "spec": [
+                                      {
+                                        "name": "mime_type",
+                                        "type": "text",
+                                        "label": "Mime Type",
+                                        "required": true
+                                      },
+                                      {
+                                        "help": "You can use public or signed URLs as input by using the URLs.",
+                                        "name": "file_uri",
+                                        "type": "text",
+                                        "label": "File URI",
+                                        "required": true
+                                      }
+                                    ],
+                                    "type": "collection",
+                                    "label": "File Data",
+                                    "required": true
+                                  }
+                                ]
+                              },
+                              {
+                                "label": "Function Call",
+                                "value": "functionCall",
+                                "nested": [
+                                  {
+                                    "name": "functionCall",
+                                    "spec": [
+                                      {
+                                        "help": "The name of the function to call.",
+                                        "name": "name",
+                                        "type": "text",
+                                        "label": "Name",
+                                        "required": true,
+                                        "validate": {
+                                          "max": 64
+                                        }
+                                      },
+                                      {
+                                        "help": "The function parameters and values in JSON object format.",
+                                        "name": "args",
+                                        "type": "json",
+                                        "label": "Arguments"
+                                      },
+                                      {
+                                        "help": "The unique ID of the function call.",
+                                        "name": "id",
+                                        "type": "text",
+                                        "label": "Function Call ID"
+                                      }
+                                    ],
+                                    "type": "collection",
+                                    "label": "Function Call"
+                                  }
+                                ]
+                              },
+                              {
+                                "label": "Function Response",
+                                "value": "functionResponse",
+                                "nested": [
+                                  {
+                                    "name": "functionResponse",
+                                    "spec": [
+                                      {
+                                        "help": "The name of the function to call.",
+                                        "name": "name",
+                                        "type": "text",
+                                        "label": "Name",
+                                        "required": true,
+                                        "validate": {
+                                          "max": 64
+                                        }
+                                      },
+                                      {
+                                        "help": "The function response in JSON object format.",
+                                        "name": "response",
+                                        "type": "json",
+                                        "label": "Response",
+                                        "required": true
+                                      }
+                                    ],
+                                    "type": "collection",
+                                    "label": "Function Response"
+                                  }
+                                ]
+                              }
+                            ],
+                            "required": true
+                          },
+                          {
+                            "name": "thoughtSignature",
+                            "type": "text",
+                            "label": "Thought Signature"
+                          }
+                        ],
+                        "type": "array",
+                        "label": "Parts",
+                        "required": true
+                      }
+                    ],
+                    "type": "array",
+                    "label": "Messages",
+                    "required": true
+                  },
+                  {
+                    "name": "system_instruction",
+                    "spec": [
+                      {
+                        "name": "parts",
+                        "spec": {
+                          "name": "value",
+                          "spec": [
+                            {
+                              "name": "text",
+                              "type": "text",
+                              "label": "Value"
+                            }
+                          ],
+                          "type": "collection",
+                          "label": "Prompt"
+                        },
+                        "type": "array",
+                        "label": "Prompts"
+                      }
+                    ],
+                    "type": "collection",
+                    "label": "System Instructions"
+                  },
+                  {
+                    "name": "safetySettings",
+                    "spec": [
+                      {
+                        "name": "category",
+                        "type": "select",
+                        "label": "Category",
+                        "options": [
+                          {
+                            "label": "Harassment content",
+                            "value": "HARM_CATEGORY_HARASSMENT"
+                          },
+                          {
+                            "label": "Hate speech and content",
+                            "value": "HARM_CATEGORY_HATE_SPEECH"
+                          },
+                          {
+                            "label": "Sexually explicit content.",
+                            "value": "HARM_CATEGORY_SEXUALLY_EXPLICIT"
+                          },
+                          {
+                            "label": "Dangerous content:",
+                            "value": "HARM_CATEGORY_DANGEROUS_CONTENT"
+                          }
+                        ]
+                      },
+                      {
+                        "name": "threshold",
+                        "type": "select",
+                        "label": "Threshold",
+                        "options": [
+                          {
+                            "label": "Block low and above.",
+                            "value": "BLOCK_LOW_AND_ABOVE"
+                          },
+                          {
+                            "label": "Block medium and above.",
+                            "value": "BLOCK_MEDIUM_AND_ABOVE"
+                          },
+                          {
+                            "label": "Block only high.",
+                            "value": "BLOCK_ONLY_HIGH"
+                          },
+                          {
+                            "label": "Block none.",
+                            "value": "BLOCK_NONE"
+                          }
+                        ]
+                      }
+                    ],
+                    "type": "array",
+                    "label": "Safety Settings"
+                  },
+                  {
+                    "name": "generationConfig",
+                    "spec": [
+                      {
+                        "name": "stopSequences",
+                        "spec": {
+                          "name": "value",
+                          "type": "text",
+                          "label": "Stop Sequence"
+                        },
+                        "type": "array",
+                        "label": "Stop Sequences"
+                      },
+                      {
+                        "name": "responseModalities",
+                        "type": "select",
+                        "label": "Response Modalities",
+                        "multiple": true,
+                        "validate": {
+                          "enum": [
+                            "text",
+                            "image"
+                          ]
+                        }
+                      },
+                      {
+                        "name": "maxOutputTokens",
+                        "type": "number",
+                        "label": "Max Output Tokens"
+                      },
+                      {
+                        "name": "temperature",
+                        "type": "number",
+                        "label": "Temperature",
+                        "validate": {
+                          "max": 1,
+                          "min": 0
+                        }
+                      },
+                      {
+                        "name": "topP",
+                        "type": "number",
+                        "label": "Top P",
+                        "validate": {
+                          "max": 1,
+                          "min": 0
+                        }
+                      },
+                      {
+                        "name": "topK",
+                        "type": "number",
+                        "label": "Top K"
+                      },
+                      {
+                        "name": "thinkingConfig",
+                        "spec": [
+                          {
+                            "name": "thinkingBudget",
+                            "type": "number",
+                            "label": "Thinking Budget"
+                          },
+                          {
+                            "name": "include_thoughts",
+                            "type": "boolean",
+                            "label": "Include Thoughts"
+                          },
+                          {
+                            "name": "thinking_level",
+                            "type": "select",
+                            "label": "Thinking Level",
+                            "validate": {
+                              "enum": [
+                                "low",
+                                "high"
+                              ]
+                            }
+                          }
+                        ],
+                        "type": "collection",
+                        "label": "Thinking Config"
+                      },
+                      {
+                        "name": "mediaResolution",
+                        "type": "select",
+                        "label": "Media Resolution",
+                        "validate": {
+                          "enum": [
+                            "media_resolution_low",
+                            "media_resolution_medium",
+                            "media_resolution_high"
+                          ]
+                        }
+                      },
+                      {
+                        "name": "imageConfig",
+                        "spec": [
+                          {
+                            "name": "imageSize",
+                            "type": "select",
+                            "label": "Image Size",
+                            "validate": {
+                              "enum": [
+                                "1K",
+                                "2K",
+                                "4K"
+                              ]
+                            }
+                          }
+                        ],
+                        "type": "collection",
+                        "label": "Image Configuration"
+                      },
+                      {
+                        "name": "responseMimeType",
+                        "type": "select",
+                        "label": "Response Format"
+                      }
+                    ],
+                    "type": "collection",
+                    "label": "Generation configurations"
+                  },
+                  {
+                    "name": "tools",
+                    "type": "any",
+                    "label": "Tools"
+                  },
+                  {
+                    "name": "tool_config",
+                    "type": "any",
+                    "label": "Tool Config"
+                  },
+                  {
+                    "name": "function_declarations_context",
+                    "type": "boolean",
+                    "label": "Function Declarations Grounding"
+                  },
+                  {
+                    "name": "url_context",
+                    "type": "boolean",
+                    "label": "URL Context"
+                  },
+                  {
+                    "name": "google_search_context",
+                    "type": "boolean",
+                    "label": "Google Search Grounding"
+                  },
+                  {
+                    "name": "code_execution",
+                    "type": "boolean",
+                    "label": "Code Execution"
+                  },
+                  {
+                    "name": "google_maps_context",
+                    "type": "boolean",
+                    "label": "Google Maps Grounding"
+                  },
+                  {
+                    "name": "file_search_store_context",
+                    "type": "boolean",
+                    "label": "File Search Store Context"
+                  },
+                  {
+                    "name": "serviceTier",
+                    "type": "select",
+                    "label": "Inference Service Tier"
+                  }
+                ]
+              }
+            },
+            {
+              "id": 5,
+              "module": "json:ParseJSON",
+              "version": 1,
+              "parameters": {
+                "type": 536215
+              },
+              "mapper": {
+                "json": "{{15.candidates[].content.parts[].text}}"
+              },
+              "metadata": {
+                "designer": {
+                  "x": 900,
+                  "y": 1200
+                },
+                "restore": {
+                  "parameters": {
+                    "type": {
+                      "label": "KaigoRecordSchema"
+                    }
+                  }
+                },
+                "parameters": [
+                  {
+                    "name": "type",
+                    "type": "udt",
+                    "label": "Data structure"
+                  }
+                ],
+                "expect": [
+                  {
+                    "name": "json",
+                    "type": "text",
+                    "label": "JSON string",
+                    "required": true
+                  }
+                ],
+                "interface": [
+                  {
+                    "help": "",
+                    "name": "patient_name",
+                    "type": "text",
+                    "label": "Patient name",
+                    "default": null,
+                    "required": false,
+                    "multiline": false
+                  },
+                  {
+                    "help": "",
+                    "name": "category",
+                    "type": "text",
+                    "label": "Category"
+                  },
+                  {
+                    "help": "",
+                    "name": "care_record_ja",
+                    "type": "text",
+                    "label": "Care record ja"
+                  },
+                  {
+                    "help": "",
+                    "name": "detail",
+                    "spec": [
+                      {
+                        "name": "intake_food",
+                        "type": "text",
+                        "label": "Intake food"
+                      },
+                      {
+                        "name": "intake_water_ml",
+                        "type": "text",
+                        "label": "Intake water ml"
+                      },
+                      {
+                        "name": "vital_signs",
+                        "type": "text",
+                        "label": "Vital signs"
+                      }
+                    ],
+                    "type": "collection",
+                    "label": "Detail"
+                  },
+                  {
+                    "help": "",
+                    "name": "is_abnormal",
+                    "type": "boolean",
+                    "label": "Is abnormal"
+                  },
+                  {
+                    "help": "",
+                    "name": "soap_text",
+                    "type": "text",
+                    "label": "SOAP text"
+                  },
+                  {
+                    "help": "",
+                    "name": "missing_info",
+                    "type": "text",
+                    "label": "Missing info"
+                  },
+                  {
+                    "help": "",
+                    "name": "raw_transcript",
+                    "type": "text",
+                    "label": "Raw transcript"
+                  }
+                ]
+              }
+            },
+            {
+              "id": 4,
+              "module": "google-sheets:addRow",
+              "version": 2,
+              "parameters": {
+                "__IMTCONN__": 0
+              },
+              "mapper": {
+                "from": "drive",
+                "mode": "select",
+                "values": {
+                  "分類": "{{5.category}}",
+                  "記録者": "{{2.events[].source.userId}}",
+                  "SOAP構造": "{{5.soap_text}}",
+                  "バイタル": "{{5.detail.vital_signs}}",
+                  "介護記録": "{{5.care_record_ja}}",
+                  "記録日時": "{{formatDate(now; \"YYYY-MM-DD HH:mm:ss\"; \"Asia/Tokyo\")}}",
+                  "利用者姓名": "{{5.patient_name}}",
+                  "異常・注意": "{{5.is_abnormal}}",
+                  "食事摂取量": "{{5.detail.intake_food}}",
+                  "原文テキスト": "{{5.raw_transcript}}",
+                  "水分摂取量(ml)": "{{5.detail.intake_water_ml}}",
+                  "未入力・確認項目": "{{5.missing_info}}"
+                },
+                "sheetId": "介護記録（デモ）",
+                "spreadsheetId": "REDACTED_GOOGLE_SHEET_ID",
+                "includesHeaders": true,
+                "insertDataOption": "INSERT_ROWS",
+                "useColumnHeaders": true,
+                "valueInputOption": "RAW",
+                "insertUnformatted": false
+              },
+              "metadata": {
+                "designer": {
+                  "x": 1200,
+                  "y": 1200
+                },
+                "restore": {
+                  "expect": {
+                    "from": {
+                      "label": "My Drive"
+                    },
+                    "mode": {
+                      "label": "Search by path"
+                    },
+                    "sheetId": "介護記録（デモ）",
+                    "spreadsheetId": "REDACTED_GOOGLE_SHEET_ID",
+                    "includesHeaders": {
+                      "label": "Yes"
+                    },
+                    "insertDataOption": {
+                      "mode": "chose",
+                      "label": "Insert rows"
+                    },
+                    "useColumnHeaders": {
+                      "label": "Yes"
+                    },
+                    "valueInputOption": {
+                      "mode": "chose",
+                      "label": "Raw"
+                    },
+                    "insertUnformatted": {
+                      "mode": "chose"
+                    }
+                  },
+                  "parameters": {
+                    "__IMTCONN__": 0
+                  }
+                },
+                "parameters": [
+                  {
+                    "name": "__IMTCONN__",
+                    "type": "account:google",
+                    "label": "Connection",
+                    "required": true
+                  }
+                ],
+                "expect": [
+                  {
+                    "name": "mode",
+                    "type": "select",
+                    "label": "Search Method",
+                    "required": true,
+                    "validate": {
+                      "enum": [
+                        "select",
+                        "fromAll",
+                        "map"
+                      ]
+                    }
+                  },
+                  {
+                    "name": "insertUnformatted",
+                    "type": "boolean",
+                    "label": "Unformatted",
+                    "required": true
+                  },
+                  {
+                    "name": "valueInputOption",
+                    "type": "select",
+                    "label": "Value input option",
+                    "required": true,
+                    "validate": {
+                      "enum": [
+                        "USER_ENTERED",
+                        "RAW"
+                      ]
+                    }
+                  },
+                  {
+                    "name": "insertDataOption",
+                    "type": "select",
+                    "label": "Insert data option",
+                    "validate": {
+                      "enum": [
+                        "INSERT_ROWS",
+                        "OVERWRITE"
+                      ]
+                    }
+                  },
+                  {
+                    "name": "from",
+                    "type": "select",
+                    "label": "Drive",
+                    "required": true,
+                    "validate": {
+                      "enum": [
+                        "drive",
+                        "share",
+                        "team"
+                      ]
+                    }
+                  },
+                  {
+                    "name": "spreadsheetId",
+                    "type": "file",
+                    "label": "Spreadsheet Name",
+                    "required": true
+                  },
+                  {
+                    "name": "sheetId",
+                    "type": "select",
+                    "label": "Sheet Name",
+                    "required": true
+                  },
+                  {
+                    "name": "includesHeaders",
+                    "type": "select",
+                    "label": "Table contains headers",
+                    "required": true,
+                    "validate": {
+                      "enum": [
+                        true,
+                        false
+                      ]
+                    }
+                  },
+                  {
+                    "name": "useColumnHeaders",
+                    "type": "select",
+                    "label": "Use column headers as IDs of the columns",
+                    "required": true,
+                    "validate": {
+                      "enum": [
+                        true,
+                        false
+                      ]
+                    }
+                  },
+                  {
+                    "name": "values",
+                    "spec": [
+                      {
+                        "name": "記録日時",
+                        "type": "text",
+                        "label": "記録日時 (A)"
+                      },
+                      {
+                        "name": "利用者姓名",
+                        "type": "text",
+                        "label": "利用者姓名 (B)"
+                      },
+                      {
+                        "name": "分類",
+                        "type": "text",
+                        "label": "分類 (C)"
+                      },
+                      {
+                        "name": "介護記録",
+                        "type": "text",
+                        "label": "介護記録 (D)"
+                      },
+                      {
+                        "name": "食事摂取量",
+                        "type": "text",
+                        "label": "食事摂取量 (E)"
+                      },
+                      {
+                        "name": "水分摂取量(ml)",
+                        "type": "text",
+                        "label": "水分摂取量(ml) (F)"
+                      },
+                      {
+                        "name": "バイタル",
+                        "type": "text",
+                        "label": "バイタル (G)"
+                      },
+                      {
+                        "name": "異常・注意",
+                        "type": "text",
+                        "label": "異常・注意 (H)"
+                      },
+                      {
+                        "name": "SOAP構造",
+                        "type": "text",
+                        "label": "SOAP構造 (I)"
+                      },
+                      {
+                        "name": "未入力・確認項目",
+                        "type": "text",
+                        "label": "未入力・確認項目 (J)"
+                      },
+                      {
+                        "name": "原文テキスト",
+                        "type": "text",
+                        "label": "原文テキスト (K)"
+                      },
+                      {
+                        "name": "記録者",
+                        "type": "text",
+                        "label": "記録者 (L)"
+                      }
+                    ],
+                    "type": "collection",
+                    "label": "Values in columns",
+                    "metadata": [
+                      [
+                        [
+                          "記録日時",
+                          "利用者姓名",
+                          "分類",
+                          "介護記録",
+                          "食事摂取量",
+                          "水分摂取量(ml)",
+                          "バイタル",
+                          "異常・注意",
+                          "SOAP構造",
+                          "未入力・確認項目",
+                          "原文テキスト",
+                          "記録者"
+                        ]
+                      ]
+                    ]
+                  }
+                ],
+                "advanced": true
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "metadata": {
+    "instant": true,
+    "version": 1,
+    "scenario": {
+      "roundtrips": 1,
+      "maxErrors": 3,
+      "autoCommit": true,
+      "autoCommitTriggerLast": true,
+      "sequential": false,
+      "slots": null,
+      "confidential": false,
+      "dataloss": false,
+      "dlq": false,
+      "freshVariables": false
+    },
+    "designer": {
+      "orphans": []
+    },
+    "zone": "eu1.make.com",
+    "notes": []
+  }
+}
