@@ -33,6 +33,18 @@ flowchart LR
   G --> H[人工确认／后续业务使用]
 ```
 
+## MVP 画面展示
+
+### Make 自动化流程
+![Make 自动化流程图](./assets/automation-flow-mvp.jpg)
+
+文字与语音记录会分流处理，经 AI 解析和 JSON 校验后写入 Google Sheets，并保留人工确认环节。
+
+### Google Sheets 结构化记录示例
+![Google Sheets 记录示例](./assets/care-record-demo-mvp.jpg)
+
+示例使用脱敏测试数据，仅展示记录字段与呈现方式。
+
 ## 结构化输出
 
 AI 输出并解析以下主要字段：
